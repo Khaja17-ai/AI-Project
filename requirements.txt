@@ -2,6 +2,5 @@ streamlit
 langchain
 langchain-google-genai
 langchain-community
-faiss-cpu
 PyPDF2
 python-dotenv

@@ -1,22 +1,19 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_community.vectorstores import FAISS
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
+from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 
-# Load environment variables (API Key) from the .env file
+# Load environment variables
 load_dotenv()
 
-# Configure the Streamlit UI
 st.set_page_config(page_title="AI Document Agent", page_icon="📄", layout="wide")
 st.title("📄 AI Document Q&A Agent")
 st.write("Upload a PDF, let the AI read it, and ask any question about its contents.")
 
-# Ensure API key is present
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key or api_key == "your_api_key_here":
     st.error("⚠️ Please add your Gemini API Key to the .env file to continue.")
@@ -31,7 +28,6 @@ with st.sidebar:
 # --- CORE LOGIC: Reading and Embedding ---
 if process_button and pdf_docs:
     with st.spinner("Reading, chunking, and learning the documents..."):
-        # Extract text from all PDFs
         raw_text = ""
         for pdf in pdf_docs:
             pdf_reader = PdfReader(pdf)
@@ -40,16 +36,14 @@ if process_button and pdf_docs:
                 if text:
                     raw_text += text
         
-        # Split the massive text into readable chunks
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         text_chunks = text_splitter.split_text(raw_text)
         
-        # Convert text into searchable AI vectors using Google Embeddings
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
         
-        # Save the vectors locally so we can search them
-        vector_store.save_local("faiss_index")
+        # Storing vectors safely in Streamlit's session memory
+        st.session_state.vector_store = InMemoryVectorStore.from_texts(text_chunks, embedding=embeddings)
+        
         st.success("✅ Documents learned! You can now ask questions.")
 
 # --- UI: Chat / Question Area ---
@@ -58,18 +52,15 @@ st.header("2. Ask Questions")
 user_question = st.text_input("What do you want to know from the documents?")
 
 if user_question:
-    if not os.path.exists("faiss_index"):
+    if "vector_store" not in st.session_state:
         st.warning("⚠️ Please upload and process a document first.")
     else:
         with st.spinner("Thinking..."):
-            # Load the AI embeddings and the local database
-            embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-            new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+            # 1. Retrieve relevant text chunks
+            docs = st.session_state.vector_store.similarity_search(user_question)
+            context_text = "\n\n".join([doc.page_content for doc in docs])
             
-            # Find the most relevant chunks of text
-            docs = new_db.similarity_search(user_question)
-            
-            # Formulate the prompt rules
+            # 2. Formulate the rules for the AI
             prompt_template = """
             Answer the question as detailed as possible using ONLY the provided context. 
             If the answer is not in the context, do not guess. Just say, "The answer is not available in the uploaded document."
@@ -84,13 +75,13 @@ if user_question:
             """
             prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
             
-            # Initialize Gemini AI
+            # 3. Initialize Gemini
             model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
-            chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
             
-            # Get the final answer
-            response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+            # 4. Modern LCEL approach: Pipe the prompt directly into the model
+            chain = prompt | model
+            response = chain.invoke({"context": context_text, "question": user_question})
             
-            # Display the output
+            # 5. Display the final text output
             st.write("### AI Response:")
-            st.info(response["output_text"])
+            st.info(response.content)
