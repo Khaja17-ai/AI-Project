@@ -39,7 +39,7 @@ if process_button and pdf_docs:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         text_chunks = text_splitter.split_text(raw_text)
         
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview")
         
         # Storing vectors safely in Streamlit's session memory
         st.session_state.vector_store = InMemoryVectorStore.from_texts(text_chunks, embedding=embeddings)
