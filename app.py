@@ -5,6 +5,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
+from langchain_core.output_parsers import StrOutputParser
 import os
 
 # Load environment variables
@@ -76,12 +77,12 @@ if user_question:
             prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
             
             # 3. Initialize Gemini
-            model = ChatGoogleGenerativeAI(model="gemini-1.5-flash-002", temperature=0.3)
+            model = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
             
-            # 4. Modern LCEL approach: Pipe the prompt directly into the model
-            chain = prompt | model
+            # 4. Modern LCEL approach: Pipe through the string parser
+            chain = prompt | model | StrOutputParser()
             response = chain.invoke({"context": context_text, "question": user_question})
             
             # 5. Display the final text output
             st.write("### AI Response:")
-            st.info(response.content)
+            st.info(response)
