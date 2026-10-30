@@ -84,10 +84,13 @@ if user_question:
             # 3. Initialize Gemini
             model = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
             
-            # 4. Modern LCEL approach: Pipe through the string parser
+           # 4. Modern LCEL approach: Pipe through the string parser
             chain = prompt | model | StrOutputParser()
-            response = chain.invoke({"context": context_text, "question": user_question})
             
-            # 5. Display the final text output
+            # 5. Display the AI Response using Streaming
             st.write("### AI Response:")
-            st.info(response)
+            
+            # st.write_stream automatically catches the words as they generate and types them on screen
+            with st.spinner("Thinking..."):
+                response_stream = chain.stream({"context": context_text, "question": user_question})
+                st.write_stream(response_stream)
