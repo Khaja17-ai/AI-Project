@@ -57,14 +57,19 @@ if user_question:
         st.warning("⚠️ Please upload and process a document first.")
     else:
         with st.spinner("Thinking..."):
-            # 1. Retrieve relevant text chunks
-            docs = st.session_state.vector_store.similarity_search(user_question)
+           # 1. Retrieve more text chunks (k=8) so it has enough context to actually summarize
+            docs = st.session_state.vector_store.similarity_search(user_question, k=8)
             context_text = "\n\n".join([doc.page_content for doc in docs])
             
-            # 2. Formulate the rules for the AI
+            # 2. Give the AI a specific "Tutor/Study Buddy" Persona
             prompt_template = """
-            Answer the question as detailed as possible using ONLY the provided context. 
-            If the answer is not in the context, do not guess. Just say, "The answer is not available in the uploaded document."
+            You are a friendly, highly intelligent study buddy and AI tutor. 
+            Use the following context from the uploaded document to answer the user's question.
+            
+            - If the user asks for a summary, explain it simply and conversationally.
+            - If the user uploads an assignment or syllabus and asks for advice, analyze the text to identify the most important concepts. 
+            - Suggest a step-by-step study plan (e.g., "Study this first, then look at this next").
+            - Always maintain a helpful, encouraging, and conversational tone, like a smart friend helping them prepare for an exam.
             
             Context:
             {context}
